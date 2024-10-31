@@ -14,6 +14,7 @@ format:
 toc: true
 execute: 
   cache: true
+license: CC BY-NC
 ---
 
 ## Learning Objectives
