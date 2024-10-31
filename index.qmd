@@ -349,7 +349,7 @@ While web scraping is a valuable tool for data collection, it’s essential for 
 
 - **Check the Website's Terms of Service**: Before scraping, always review the website's terms of service or usage policy. Many sites explicitly prohibit scraping, and respecting these terms is both legally and ethically important. If the website allows data collection for research purposes, proceed with caution.
 
--**Respect Robots.txt and Use robots.txt Checker**: Most websites have a robots.txt file that specifies which parts of the site can or cannot be accessed by automated tools. Use robots.txt to guide your scraping efforts and avoid restricted areas of the site. The [robotstxt](https://docs.ropensci.org/robotstxt/) package can help automate this check.
+- **Respect Robots.txt and Use robots.txt Checker**: Most websites have a robots.txt file that specifies which parts of the site can or cannot be accessed by automated tools. Use robots.txt to guide your scraping efforts and avoid restricted areas of the site. The [robotstxt](https://docs.ropensci.org/robotstxt/) package can help automate this check.
 
 - **Limit the Request Frequency**: Sending too many requests in a short time can overload a server, affecting the website's performance and possibly causing your IP to be blocked. To avoid this, add delays between requests using functions like `Sys.sleep()` as we did above. A delay of a few seconds per request is a good practice, especially for larger data extractions.
 
