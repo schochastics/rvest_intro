@@ -1,0 +1,371 @@
+---
+title: Introduction to Web Scraping in R using `rvest`
+author:
+  - name:
+      given: David
+      family: Schoch
+    email: david.schoch@gesis.org
+    orcid: 0000-0003-2952-4812
+    affiliations:
+      - name: GESIS - Leibniz Institute for the Social Sciences
+format:
+  html: default
+  ipynb: default
+toc: true
+execute: 
+  cache: true
+---
+
+## Learning Objectives
+
+By the end of this tutorial, you will be able to
+
+1. Install and load the `rvest` package.
+2. Navigating HTML structure for data extraction.
+3. Scraping html elements from a static website.
+
+## Target audience
+
+This tutorial is aimed at researchers who are new to web scraping and interested in collecting and analyzing digital data, such as online articles, social media content, or public forum discussions, to study trends, public opinion, or online behaviors.
+
+## Setting up the computational environment
+
+First, install and load the `rvest` package. `rvest` is a powerful package in R designed specifically for web scraping and is built on top of the `xml2` package, which makes handling HTML and XML documents easier.
+```{r}
+#| message: false
+#| label: load-rvest
+# install.packages("rvest")
+library(rvest)
+```
+
+For data wrangling purposes, we also need the packages `lubridate` for handling timestamps, `purrr` for data wrangling and `tibble` for prettier data frames.
+```{r}
+#| label: load-auxilliary
+#| message: false
+library(lubridate)
+library(purrr)
+library(tibble)
+```
+
+## Social Science Usecase(s)
+
+Web scraping is a powerful tool since it allows to access vast amounts of publicly available data directly from websites, enabling original research that might otherwise be difficult to conduct. Through web scraping, researchers can collect diverse data types—such as social media posts, news articles, forum discussions, or product reviews—that offer insights into public opinion, behavior trends, cultural shifts, and social interactions. It allows to gather data frequently updated in real-time, capturing evolving conversations and events that may not be accessible through traditional datasets. Furthermore, web scraping enables tailored data collection, allowing researchers to focus on specific topics, keywords, or populations relevant to their studies, which can enhance the relevance and richness of social research. 
+
+## Introduction
+
+*(If you are following along, you will most likely get different results since the website will be updated)*
+
+This tutorial will mostly cover practical aspects of web scraping. For theoretical and ethical aspects, please consult the [GESIS DBD Guides](https://www.gesis.org/fileadmin/admin/Dateikatalog/pdf/guides/10_soldner_how_to_static_web_scraping.pdf). 
+
+For this tutorial, we scrape recent articles from The Conversation's page on mental health. 
+Goto [The Conversation - Mental Health](https://theconversation.com/europe/topics/mental-health-343) and look at the page. 
+
+![Screenshot of The Conversation Mental Health topic page](website.png){fig-align="center"}
+
+You’ll notice that each article has an headline, author name(s), and publication date. As a start, these are the elements we want to scrape. 
+
+
+## Scraping single HTML Elements
+
+To begin the scraping, we first want to get a local copy of the website on our machine. 
+```{r}
+#| label: url
+url <- "https://theconversation.com/europe/topics/mental-health-343"
+```
+
+
+Use `read_html()` to fetch the HTML content of the page.
+```{r}
+#| label: fetch-content
+doc <- read_html(url)
+doc
+```
+
+`doc` now contains the complete html code that produces the website. Our goal is know to scrape the Article headlines, the authors and the publication date. To do so, we need to understand how to locate these parts within the html structure of the website. To do so, right-click on a headline of an article.
+
+![Open right-click menu in firefox](menu.png){fig-align="center"}
+
+The next step depends on the browser you use, but there should be something similar to "inspect" shown in the screenshot above.
+
+When clicking on inspect, the so called developers console will open and show 
+
+![Developers console showing the html structure of a headline](devconsole.png){fig-align="center"}
+
+You will notice that the header is a link (it is within  `<a><\a>` tags) but also an `h2` element. Lets try to get all `h2` elements of the page and extract the text and see what we get. 
+
+```{r}
+#| label: extract-headlines
+headlines <- doc |>
+    html_elements("h2") |>
+    html_text()
+headlines
+```
+
+In this case, we were pretty lucky that the only `h2` elements on the page are actually the article headlines. In many other cases, you might need to refine your selection by giving more specific so called **css selectors**. Let us look at some common selectors by example that cover most of the cases you might stumble upon when gathering data. Starting with some header again:
+
+```html
+<h2 class="header"> This is a header </h2>
+<h2> This is also a header </h2>
+<span class="header">This is a false header</span>
+```
+
+To only get the first header in the example, you need to combine two selectors. One for the html element and one for the class. Adding classes can simple be done with ".header".
+
+```r
+html_elements("h2.header")
+```
+
+This selector gets all `h2` elements with class "header", so just the first in our case. Besides classes that usually provide some form of styling for html elements, there can also be ids assigned to elements.
+
+```html
+<h2 id="header"> This is a header </h2>
+<h2 class="header"> This is also a header </h2>
+<span class="header">This is a false header</span>
+```
+
+To get `h2` elements with the id "header", you simply switch ".header" with "#header".
+```r
+html_elements("h2#header")
+```
+
+Yet another common situation is that we want to get elements which are within other elements. So for instance there might be many `h2` headers on a page, but the one's we are interested in can only be found within specific `div` environments.
+
+```html
+<div class="article">
+<h2> This is a header </h2>
+</div>
+<h2> This is also a header </h2>
+```
+
+To only get the `h2` elements within such `div` environments, we can use the following selector.
+
+```r
+html_elements(".article h2")
+```
+
+In our own case above, our selector was simply `h2` but if you look closely at the developers console, you will notice that the headlines are within a `div`
+of class "article--header". So one strategy to refine the selection would be to use
+
+```{r}
+#| label: extract-headlines-alternative
+doc |>
+    html_elements(".article--header h2") |>
+    html_text()
+```
+
+Notice that we get the exact same results as before so this refinement step was not necessary but still makes our extraction more robust.
+
+While these three cases do not cover all potential situations you might run into, it does illustrate the most basic cases. However, selecting the right elements without over (or under) selecting can be quite tricky. Luckily, there are tools that can help you to find the correct css selectors for specific elements. On particular that works for any browser is the SelectorGadget. To use it, simply open this page in a browser and then drag the following link to your bookmark bar [SelectorGadget](javascript:(function()%7Bvar%20s=document.createElement('div');s.innerHTML='Loading...';s.style.color='black';s.style.padding='20px';s.style.position='fixed';s.style.zIndex='9999';s.style.fontSize='3.0em';s.style.border='2px%20solid%20black';s.style.right='40px';s.style.top='40px';s.setAttribute('class','selector_gadget_loading');s.style.background='white';document.body.appendChild(s);s=document.createElement('script');s.setAttribute('type','text/javascript');s.setAttribute('src','https://dv0akt2986vzh.cloudfront.net/unstable/lib/selectorgadget.js');document.body.appendChild(s);%7D)();). An introduction on how to use this tool can be found in the [documentation of rvest](https://rvest.tidyverse.org/articles/selectorgadget.html).
+
+For the purpose of this tutorial, we will continue to use the developers console but feel free to switch and use the SelectorGadget. In our next step, we try to retrieve the authors names of articles. Right click on an author name and 
+
+![Developers console after right clicking on an author](devconsole_author.png){fig-align="center"}
+
+It seems that the author information is contained in a `p` element with class "byline". Note however, that this also contains the affiliation of authors, which we are not interested in at the moment. So to refine our selection, we need to check what differentiates the author from the affiliation. You will notice that the author name is also a link, so we can simply select all elements within "byline" that are links and extract the text.
+```{r}
+#| label: extract-authors-wrong
+doc |>
+    html_elements(".byline a") |>
+    html_text()
+```
+
+This looks neat! However, if you look closely we have more authors than headlines. The problem is that many articles have several authors which we do not account for in our extraction.
+To correct this, we first need to extract all elements of class "byline" and for each of these elements gather the authors and paste them together. That way, we obtain all authors associated with each article correctly.
+
+```{r}
+#| label: extract-authors-correct
+bylines <- doc |> html_elements(".byline")
+
+authors <- map_chr(bylines, function(x) {
+    html_elements(x, "a") |>
+        html_text() |>
+        toString()
+})
+
+authors
+```
+
+In the next step, we try to get the date the article was published. Same as before, right click on a date and inspect it
+
+![Developers console after right clicking on a date](devconsole_time.png){fig-align="center"}
+
+You can see the date in three position. as an attribute "datetime" as an attribute "title" and simple as the text of the `time` element. Ultimately, it does not really matter which of the dates you extract, but I would recommend in this case to go for the datetime attribute since it contains the date in a standard "machine readable" way which we can run through the package `lubridate` to obtain a datetime object in R. To extract the value of an attribute rather than the text, we use the function `html_attr()`.
+
+```{r}
+#| label: extract-date
+dates <- doc |>
+    html_elements("time") |>
+    html_attr("datetime") |>
+    as_datetime()
+dates
+```
+
+Now we have the basic metadata of all shown articles. 
+
+In order to be able to gather more data later, we will also extract the links to each of the articles. To get the links, follow the same steps as we did with the other metadata.  
+
+```{r}
+#| label: extract-links
+links <- doc |>
+    html_elements("h2 a") |>
+    html_attr("href")
+links
+```
+
+Note that the links you extracted here are relative links and in order to access them properly, you need to paste the base url to the link.
+
+```{r}
+#| label: add-base-url
+base_url <- "https://theconversation.com"
+links <- paste0(base_url, links)
+links
+```
+
+In a last step, we combine all the data we extracted in a nice data frame.
+```{r}
+#| label: combine-dataframe
+articles <- tibble(
+    headline = headlines,
+    author = authors,
+    date = dates,
+    link = links
+)
+articles
+```
+
+Now we have a neat little data frame that contains the meta data of all articles on the front page of the Mental Health overview page from "The Conversation". 
+
+## Automating the steps to extract more content
+
+In the first part, we learned how to extract metadata for articles from a single url. You may have noticed though, that the page has pagination, so there are additional pages of content. Now we could either repeat all the steps, or we can automate it. The latter is what we are going to do next. First, we combine all the steps from above in one function that takes the url as input and generates as output a data frame with the article metadata.
+
+```{r}
+#| label: scrape-function
+
+get_metadata <- function(url) {
+    doc <- read_html(url)
+
+    headlines <- doc |>
+        html_elements("h2") |>
+        html_text()
+
+    bylines <- doc |> html_elements(".byline")
+
+    authors <- map_chr(bylines, function(x) {
+        html_elements(x, "a") |>
+            html_text() |>
+            toString()
+    })
+
+    dates <- doc |>
+        html_elements("time") |>
+        html_attr("datetime") |>
+        as_datetime()
+
+    base_url <- "https://theconversation.com"
+    links <- doc |>
+        html_elements("h2 a") |>
+        html_attr("href")
+    links <- paste0(base_url, links)
+
+    articles <- tibble(
+        headline = headlines,
+        author = authors,
+        date = dates,
+        link = links
+    )
+    Sys.sleep(2)
+    return(articles)
+}
+```
+
+The only extra thing we added to the function is the `Sys.sleep(2)` statement. This makes the function pause for 5 seconds so that we do not overwhelm the server with requests. The more you scrape, the longer and the more frequent your pauses should be. This is not only considered polite, but also might prevent you from being blocked by the website.
+
+To apply these function to all pages, we can either copy/paste the url for each page or we create them pragmatically. The urls in our case have a very simple format so we can create all pages as follows (at the time of writing, there were 5 pages).
+
+```{r}
+#| label: create-urls
+urls <- paste0("https://theconversation.com/europe/topics/mental-health-343?page=", 1:5)
+urls
+```
+
+```{r}
+#| label: scrape-all-pages
+articles <- map(urls, get_metadata) |>
+    list_rbind()
+
+articles
+```
+
+The function `map()` applys the function `get_metadata()` to each url in `urls` and gathers all in a list. `list_rbind()` then creates a single data frame by binding the list together. 
+
+Now we have the metadata of all mental health related articles from "The Conversation". As next a step, we could get the actual content of the articles. You should by now have all the tools to achieve this. The urls for each article is stored in `articles` and you know how to retrieve content from a single website by inspecting the parts you want (This should be paragraphs and subheaders).  
+
+```{r}
+#| label: get-article-content
+url <- articles$link[1]
+doc <- read_html(url)
+text <- doc |>
+    html_elements(".content-body.content p, .content-body.content h2") |>
+    html_text()
+text
+```
+
+To make this a bit prettier and contained in a single string, we paste all lines together, separated by a newline character.
+
+```{r}
+#| label: paste-text
+text <- paste0(text, collapse = "\n")
+cat(text)
+```
+
+To get all articles this way, you can wrap the code in a function (remember to include a pause) and apply it to all articles.
+
+```{r}
+#| label: get-text-fct
+
+get_content <- function(url) {
+    url <- articles$link[1]
+    doc <- read_html(url)
+    text <- doc |>
+        html_elements(".content-body.content p, .content-body.content h2") |>
+        html_text()
+    text <- paste0(text, collapse = "\n")
+    Sys.sleep(2)
+    return(text)
+}
+```
+
+```r
+articles$text <- map(articles$link,get_content) |> list_rbind()
+```
+
+Thats it! Now you have a large text corpus of mental health related articles that you can now analyze the way you want to.
+
+# Important Considerations
+
+While web scraping is a valuable tool for data collection, it’s essential for researchers to approach it responsibly. Responsible web scraping helps ensure that data is collected ethically, legally, and in ways that protect both the integrity of the website and the privacy of individuals whose data may be included. If you are new to the topic, please do read our [GESIS DBD Guide](https://www.gesis.org/fileadmin/admin/Dateikatalog/pdf/guides/10_soldner_how_to_static_web_scraping.pdf) on the topic and consider these steps you can take to scrape responsibly:
+
+
+- **Check the Website's Terms of Service**: Before scraping, always review the website's terms of service or usage policy. Many sites explicitly prohibit scraping, and respecting these terms is both legally and ethically important. If the website allows data collection for research purposes, proceed with caution.
+
+-**Respect Robots.txt and Use robots.txt Checker**: Most websites have a robots.txt file that specifies which parts of the site can or cannot be accessed by automated tools. Use robots.txt to guide your scraping efforts and avoid restricted areas of the site. The [robotstxt](https://docs.ropensci.org/robotstxt/) package can help automate this check.
+
+- **Limit the Request Frequency**: Sending too many requests in a short time can overload a server, affecting the website's performance and possibly causing your IP to be blocked. To avoid this, add delays between requests using functions like `Sys.sleep()` as we did above. A delay of a few seconds per request is a good practice, especially for larger data extractions.
+
+- **Scrape Only What You Need**: Focus on collecting only the data relevant to your research questions to minimize unnecessary scraping and data collection. Collecting excessive data can slow your analysis, increase storage needs, and raise ethical concerns around data hoarding.
+
+- **Consider Alternative Data Sources**: If possible, use official APIs provided by a website. APIs are designed to give researchers and developers controlled access to data, reducing the likelihood of server strain and ensuring that data is collected within the website’s terms of service. Many platforms, like Twitter and Reddit, offer APIs for research purposes.
+
+By considering these best practices, you can ensure that your web scraping activities are conducted responsibly, minimizing any potential harm to website owners, servers, and individuals involved in the data. The R package [polite](https://github.com/dmi3kno/polite/) can help to setup your scraping code politely".
+
+
+# Additional Resources
+
+To further your learning, here are some recommended resources:
+
+- [rvest Documentation](https://rvest.tidyverse.org/): The package does not have many functions as we used in the tutorial, but the docs do provide some additional background.
+
+- As mentioned before, the R packages [polite](https://dmi3kno.github.io/polite/) and [robotstxt](https://docs.ropensci.org/robotstxt/) are extremely helpful to set up responsible scraping routines
+
+- `rvest` only allows to obtain data from static webpages. For retrieving data from dynamic pages, consider using the R package [RSelenium](https://docs.ropensci.org/RSelenium/)
