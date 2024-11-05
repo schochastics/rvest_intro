@@ -1,0 +1,5 @@
+project:
+  title: Introduction to Web Scraping in R using `rvest`
+  type: default
+  render:
+    - index.qmd

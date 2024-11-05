@@ -1,0 +1,5 @@
+install.packages("rvest")
+install.packages("lubridate")
+install.packages("purrr")
+install.packages("tibble")
+install.packages("rmarkdown")
