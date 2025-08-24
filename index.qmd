@@ -4,10 +4,10 @@ author:
   - name:
       given: David
       family: Schoch
-    email: david.schoch@gesis.org
+    email: david@schochastics.net
     orcid: 0000-0003-2952-4812
     affiliations:
-      - name: GESIS - Leibniz Institute for the Social Sciences
+      - name: Cynkra
 format:
   html: default
   ipynb: default
@@ -47,6 +47,10 @@ library(lubridate)
 library(purrr)
 library(tibble)
 ```
+
+## Duration
+
+For someone with basic R knowledge and minimal HTML/CSS experience, this tutorial will typically take 3–6 hours to complete, with beginners leaning toward the higher end of the range.
 
 ## Social Science Usecase(s)
 
